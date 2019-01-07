@@ -27,23 +27,52 @@ func NewSnapshotCache() *SnapshotCache {
 	}
 }
 
-func (scache *snapshotCache) CreateResponse(req *v2.DiscoveryRequest, responseChan chan *resource.Response) error {
+func (scache *snapshotCache) CreateResponse(req *v2.DiscoveryRequest, responseChan chan resource.Response) error {
 	nodeID := scache.hash.ID(req.Node)
 	
 	scache.mu.Lock()
 	defer scache.mu.Unlock()
-	
-	responseChan := make(chan *v2.DiscoveryRequest, 1)
 
 	snapshot, exists := scache.snapshots[nodeID]
 	if !exists || snapshot.GetResourceVersion(req.TypeUrl) == req.VersionInfo {
-		return responseChan
+		// TODO
 	}
 
-	//TODO
-	responseChan := scache.GenerateResponse(req, responseChan, snapshot.GetResources(req.TypeUrl))
+	newVersion := snapshot.GetResourceVersion(req.TypeUrl)
+	// Create response from cache
+	responseChan <- scache.GenerateResponse(req, snapshot.GetResources(req.TypeUrl), newVersion)
 }
- 
+
+func (scache *snapshotCache) GenerateResponse(req *v2.DiscoveryRequest, resources map[string]resource.Resource, version string) resource.Response {
+	out := make([]resource.Resource, 0, len(resources))
+	if len(req.ResourceName) != 0 {
+		for i, res := range resources {
+			if contains(req.ResourceName, i) {
+				out = append(out, res)
+			}
+		}
+	} else {
+		for _, res := range resources {
+			out = append(out, res)
+		}
+	}
+
+	return resource.Response{
+		Request: req,
+		Version: version,
+		Resources: out,
+	}
+}
+
+func contains(s []string, item string) bool {
+	for _, n := range s {
+		if item == n {
+			return true
+		}
+	}
+	return false
+}
+
 func (scache *snapshotCache) SetSnapshot(nodeID string, snapshot *resource.Snapshot) error {
 	scache.mu.Lock()
 	defer scache.mu.Unlock()

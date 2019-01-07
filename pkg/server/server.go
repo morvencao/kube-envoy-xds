@@ -37,10 +37,10 @@ type gRPCStream interface {
 
 // watches for all xDS resource types
 type watch struct {
-	clustersChan	chan *resource.Response
-	endpointsChan	chan *resource.Response
-	listenersChan	chan *resource.Response
-	routersChan		chan *resource.Response
+	clustersChan	chan resource.Response
+	endpointsChan	chan resource.Response
+	listenersChan	chan resource.Response
+	routersChan		chan resource.Response
 
 	clustersNonce	string
 	endpointsNonce	string
@@ -73,10 +73,10 @@ func buildResponse(response *resource.Response, typeUrl string) (*v2.DiscoveryRe
 
 func (svr *grpcServer) processReq(stream v2.ClusterDiscoveryService_StreamClustersServer, reqCh <-chan *v2.DiscoveryRequest) error {
 	var xdsWatch := &watch{
-		clustersChan: make(chan *resource.Response),
-		endpointsChan: make(chan *resource.Response),
-		listenersChan: make(chan *resource.Response),
-		routersChan: make(chan *resource.Response),
+		clustersChan: make(chan resource.Response),
+		endpointsChan: make(chan resource.Response),
+		listenersChan: make(chan resource.Response),
+		routersChan: make(chan resource.Response),
 	}
 	streamNonce := int64(0)
 

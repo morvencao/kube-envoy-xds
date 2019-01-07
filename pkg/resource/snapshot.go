@@ -20,3 +20,7 @@ func (snapshot *Snapshot) GetResourceVersion(string typeUrl) string {
 		return snapshot.Routers.Version
 	}
 }
+
+func (snapshot *Snapshot) GetResources(string typeUrl) {
+	
+}
