@@ -48,7 +48,7 @@ type watch struct {
 	routersNonce	string
 }
 
-func buildResponse(response resource.Response, typeUrl string) (*v2.DiscoveryResponse, error) {
+func buildResponse(response *resource.Response, typeUrl string) (*v2.DiscoveryResponse, error) {
 	if response == nil {
 		return nil, fmt.Errorf("empty response")
 	}
@@ -93,7 +93,7 @@ func (svr *grpcServer) processReq(stream v2.ClusterDiscoveryService_StreamCluste
 			err := stream.Send(out)
 			return err
 		case endpoints := <-xdsWatch.endpointsChan:
-			response, err := buildResponse(endpoints)
+			out, err := buildResponse(endpoints, resource.EndpointType)
 			if err != nil {
 				return err
 			}
@@ -103,7 +103,7 @@ func (svr *grpcServer) processReq(stream v2.ClusterDiscoveryService_StreamCluste
 			err := stream.Send(out)
 			return err
 		case listeners := <-xdsWatch.listenersChan:
-			response, err := buildResponse(listeners)
+			out, err := buildResponse(listeners, resource.ListenerType)
 			if err != nil {
 				return err
 			}
@@ -113,7 +113,7 @@ func (svr *grpcServer) processReq(stream v2.ClusterDiscoveryService_StreamCluste
 			err := stream.Send(out)
 			return err
 		case routers := <-xdsWatch.routersChan:
-			response, err := buildResponse(routers)
+			out, err := buildResponse(routers, resource.RouteType)
 			if err != nil {
 				return err
 			}
