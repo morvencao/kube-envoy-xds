@@ -8,6 +8,19 @@ type Snapshot struct {
 	Routers		VersionedResources
 }
 
+func NewSnapshot(version string, 
+	clusters []Resource, 
+	endpoints []Resource, 
+	listeners []Resource, 
+	routers []Resource) Snapshot {
+		return Snapshot {
+			Clusters: GetVersionedResources(version, clusters),
+			Endpoints: GetVersionedResources(version, endpoints),
+			Listeners: GetVersionedResources(version, listeners),
+			Routers: GetVersionedResources(version, routers),
+		}
+}
+
 func (snapshot *Snapshot) GetResourceVersion(typeUrl string) string {
 	if snapshot == nil {
 		return ""
