@@ -2,7 +2,7 @@ package resource
 
 import (
 	proto "github.com/gogo/protobuf/proto"
-	core "github.com/morvencao/kube-envoy-xds/envoy/api/core"
+	core "github.com/morvencao/kube-envoy-xds/envoy/api/v2/core"
 	v2 "github.com/morvencao/kube-envoy-xds/envoy/api/v2"
 )
 
@@ -31,11 +31,13 @@ type Request v2.DiscoveryRequest
 
 // Response is a pre-serialized xDS response.
 type Response struct {
-	Request v2.DiscoveryRequest
 	Version string
 	Resources []Resource
 }
 
-type NodeHash interface {
-	ID(node *core.Node) string
+func GetNodeID(node *core.Node) string {
+	if node != nil {
+		return node.Id
+	}
+	return "anynode"
 }

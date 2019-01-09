@@ -1,11 +1,12 @@
 package server
 
 import (
-	"atomic"
 	"context"
 	"fmt"
-	"sync"
+	"strconv"
+	"sync/atomic"
 
+	"google.golang.org/grpc"
 	"github.com/gogo/protobuf/proto"
 	"github.com/gogo/protobuf/types"
 
@@ -14,139 +15,135 @@ import (
 	resource "github.com/morvencao/kube-envoy-xds/pkg/resource"
 )
 
-type GRPCServer interface {
+type XDSServer interface {
 	v2.ClusterDiscoveryServiceServer
 	v2.EndpointDiscoveryServiceServer
 	v2.ListenerDiscoveryServiceServer
 	v2.RouteDiscoveryServiceServer
 }
 
-type grpcServer struct {
-	cache	*cache.Cache
+type xDSServer struct {
+	cache	cache.Cache
 }
 
-func NewGRPCServer(cache *cache.Cache) (*grpcServer, error) {
-	return &grpcServer{cache: cache}, nil
+func NewXDSServer(cache cache.Cache) (XDSServer, error) {
+	return &xDSServer{cache: cache}, nil
 }
 
-type gRPCStream interface {
+type xDSStream interface {
 	grpc.ServerStream
-	Recv() (*IncrementalDiscoveryRequest, error)
-	Send(*IncrementalDiscoveryResponse) error
-}
-
-// watches for all xDS resource types
-type watch struct {
-	clustersChan	chan resource.Response
-	endpointsChan	chan resource.Response
-	listenersChan	chan resource.Response
-	routersChan		chan resource.Response
-
-	clustersNonce	string
-	endpointsNonce	string
-	listenersNonce	string
-	routersNonce	string
+	Recv() (*v2.DiscoveryRequest, error)
+	Send(*v2.DiscoveryResponse) error
 }
 
 func buildResponse(response *resource.Response, typeUrl string) (*v2.DiscoveryResponse, error) {
 	if response == nil {
 		return nil, fmt.Errorf("empty response")
 	}
-	resources := make([]types.Any, len(resource.Resources))
+	resources := make([]types.Any, len(response.Resources))
 	for i, resource := range response.Resources {
 		data, err := proto.Marshal(resource)
 		if err != nil {
 			return nil, err
 		}
 		resources[i] = types.Any{
-			TypeUrl: typeUrl
-			Value: data
+			TypeUrl: typeUrl,
+			Value: data,
 		}
 	}
 	out := &v2.DiscoveryResponse{
 		VersionInfo: response.Version,
 		Resources: resources,
-		TypeUrl: typeUrl
+		TypeUrl: typeUrl,
 	}
 	return out, nil
 }
 
-func (svr *grpcServer) processReq(stream v2.ClusterDiscoveryService_StreamClustersServer, reqCh <-chan *v2.DiscoveryRequest) error {
-	var xdsWatch := &watch{
-		clustersChan: make(chan resource.Response),
-		endpointsChan: make(chan resource.Response),
-		listenersChan: make(chan resource.Response),
-		routersChan: make(chan resource.Response),
-	}
+func (svr *xDSServer) processReq(stream v2.ClusterDiscoveryService_StreamClustersServer, reqCh <-chan *v2.DiscoveryRequest) error {
+	clustersChan := make(chan resource.Response)
+	endpointsChan := make(chan resource.Response)
+	listenersChan := make(chan resource.Response)
+	routersChan := make(chan resource.Response)
+
+	var clustersNonce, endpointsNonce, listenersNonce, routersNonce string
+
 	streamNonce := int64(0)
 
 	for {
 		select {
-		case clusters := <-xdsWatch.clustersChan:
-			out, err := buildResponse(clusters, resource.ClusterType)
+		case clusters := <-clustersChan:
+			out, err := buildResponse(&clusters, resource.ClusterType)
 			if err != nil {
 				return err
 			}
-			streamNonce = atomic.addInt64(&streamNonce, 1)
+			streamNonce = atomic.AddInt64(&streamNonce, 1)
 			out.Nonce = strconv.FormatInt(streamNonce, 10)
-			xdsWatch.clustersNonce = out.Nonce
-			err := stream.Send(out)
+			clustersNonce = out.Nonce
+			err = stream.Send(out)
 			return err
-		case endpoints := <-xdsWatch.endpointsChan:
-			out, err := buildResponse(endpoints, resource.EndpointType)
+		case endpoints := <-endpointsChan:
+			out, err := buildResponse(&endpoints, resource.EndpointType)
 			if err != nil {
 				return err
 			}
-			streamNonce = atomic.addInt64(&streamNonce, 1)
+			streamNonce = atomic.AddInt64(&streamNonce, 1)
 			out.Nonce = strconv.FormatInt(streamNonce, 10)
-			xdsWatch.endpointsNonce = out.Nonce
-			err := stream.Send(out)
+			endpointsNonce = out.Nonce
+			err = stream.Send(out)
 			return err
-		case listeners := <-xdsWatch.listenersChan:
-			out, err := buildResponse(listeners, resource.ListenerType)
+		case listeners := <-listenersChan:
+			out, err := buildResponse(&listeners, resource.ListenerType)
 			if err != nil {
 				return err
 			}
-			streamNonce = atomic.addInt64(&streamNonce, 1)
+			streamNonce = atomic.AddInt64(&streamNonce, 1)
 			out.Nonce = strconv.FormatInt(streamNonce, 10)
-			xdsWatch.listenersNonce = out.Nonce
-			err := stream.Send(out)
+			listenersNonce = out.Nonce
+			err = stream.Send(out)
 			return err
-		case routers := <-xdsWatch.routersChan:
-			out, err := buildResponse(routers, resource.RouteType)
+		case routers := <-routersChan:
+			out, err := buildResponse(&routers, resource.RouteType)
 			if err != nil {
 				return err
 			}
-			streamNonce = atomic.addInt64(&streamNonce, 1)
+			streamNonce = atomic.AddInt64(&streamNonce, 1)
 			out.Nonce = strconv.FormatInt(streamNonce, 10)
-			xdsWatch.routersNonce = out.Nonce
-			err := stream.Send(out)
+			routersNonce = out.Nonce
+			err = stream.Send(out)
 			return err
 		case req, more := <-reqCh:
 			if !more {
 				return nil
 			}
 			if req == nil {
-				fmt.Errorf("empty request")
+				return fmt.Errorf("empty request")
 			}
 			repNonce := req.GetResponseNonce()
 			typeUrl := req.GetTypeUrl()
 
 			switch {
-			case typeUrl == resource.ClusterType && (xdsWatch.clustersNonce == "" || xdsWatch.clustersNonce == repNonce):
-				s.cache.CreateResponse(req, xdsWatch.clustersChan)
-			case typeUrl == resource.EndpointType && (xdsWatch.endpointsNonce == "" || xdsWatch.endpointsNonce == repNonce):
-				s.cache.CreateResponse(req, xdsWatch.endpointsChan)
-			case typeUrl == resource.EndpointType && (xdsWatch.listenersNonce == "" || xdsWatch.listenersNonce == repNonce):
-				s.cache.CreateResponse(req, xdsWatch.listenersChan)
-			case typeUrl == resource.EndpointType && (xdsWatch.routersNonce == "" || xdsWatch.routersNonce == repNonce):
-				s.cache.CreateResponse(req, xdsWatch.routersChan)
+			case typeUrl == resource.ClusterType && (clustersNonce == "" || clustersNonce == repNonce):
+				if err := svr.cache.CreateResponse(req, clustersChan); err != nil {
+					return err
+				}
+			case typeUrl == resource.EndpointType && (endpointsNonce == "" || endpointsNonce == repNonce):
+				if err := svr.cache.CreateResponse(req, endpointsChan); err != nil {
+					return err
+				}
+			case typeUrl == resource.EndpointType && (listenersNonce == "" || listenersNonce == repNonce):
+				if err := svr.cache.CreateResponse(req, listenersChan); err != nil {
+					return err
+				}
+			case typeUrl == resource.EndpointType && (routersNonce == "" || routersNonce == repNonce):
+				if err := svr.cache.CreateResponse(req, routersChan); err != nil {
+					return err
+				}
 			}
 		}
 	}
 }
 
-func (svr *grpcServer) handler(stream gRPCStream) error {
+func (svr *xDSServer) handler(stream xDSStream) error {
 	reqCh := make(chan *v2.DiscoveryRequest)
 	stopFlag := int32(0)
 
@@ -168,41 +165,58 @@ func (svr *grpcServer) handler(stream gRPCStream) error {
 	atomic.StoreInt32(&stopFlag, 1)
 
 	return err
+}
 
-func (svr *grpcServer) StreamClusters(stream v2.ClusterDiscoveryService_StreamClustersServer) error {
+func (svr *xDSServer) StreamClusters(stream v2.ClusterDiscoveryService_StreamClustersServer) error {
 	return svr.handler(stream)
 }
 
-func (svr *grpcServer) IncrementalClusters(stream v2.ClusterDiscoveryService_IncrementalClustersServer) error {
-
+func (svr *xDSServer) IncrementalClusters(stream v2.ClusterDiscoveryService_IncrementalClustersServer) error {
+	return fmt.Errorf("not implemented")
 }
 
-func (svr *grpcServer) FetchClusters(ctx context.Context, req *v2.DiscoveryRequest) (*v2.DiscoveryResponse, error) {
-
+func (svr *xDSServer) FetchClusters(ctx context.Context, req *v2.DiscoveryRequest) (*v2.DiscoveryResponse, error) {
+	response, err := svr.cache.FetchResponse(req)
+	if err != nil {
+		return nil, err
+	}
+	return buildResponse(response, resource.ClusterType)
 }
 
-func (svr *grpcServer) StreamEndpoints(stream v2.EndpointDiscoveryService_StreamEndpointsServer) error {
+func (svr *xDSServer) StreamEndpoints(stream v2.EndpointDiscoveryService_StreamEndpointsServer) error {
 	return svr.handler(stream)
 }
 
-func (svr *grpcServer) FetchEndpoints(ctx context.Context, req *v2.DiscoveryRequest) (*v2.DiscoveryResponse, error) {
-
+func (svr *xDSServer) FetchEndpoints(ctx context.Context, req *v2.DiscoveryRequest) (*v2.DiscoveryResponse, error) {
+	response, err := svr.cache.FetchResponse(req)
+	if err != nil {
+		return nil, err
+	}
+	return buildResponse(response, resource.EndpointType)
 }
 
-func (svr *grpcServer) StreamListeners(stream v2.ListenerDiscoveryService_StreamListenersServer) error {
+func (svr *xDSServer) StreamListeners(stream v2.ListenerDiscoveryService_StreamListenersServer) error {
 	return svr.handler(stream)
 }
 
-func (svr *grpcServer) FetchListeners(ctx context.Context, req *v2.DiscoveryRequest) (*v2.DiscoveryResponse, error) {
-
+func (svr *xDSServer) FetchListeners(ctx context.Context, req *v2.DiscoveryRequest) (*v2.DiscoveryResponse, error) {
+	response, err := svr.cache.FetchResponse(req)
+	if err != nil {
+		return nil, err
+	}
+	return buildResponse(response, resource.ListenerType)
 }
 
-func (svr *grpcServer) StreamRoutes(stream v2.RouteDiscoveryService_StreamRoutesServer) error {
+func (svr *xDSServer) StreamRoutes(stream v2.RouteDiscoveryService_StreamRoutesServer) error {
 	return svr.handler(stream)
 }
-func (svr *grpcServer) IncrementalRoutes(stream v2.RouteDiscoveryService_IncrementalRoutesServer) error {
-
+func (svr *xDSServer) IncrementalRoutes(stream v2.RouteDiscoveryService_IncrementalRoutesServer) error {
+	return fmt.Errorf("not implemented")
 }
-func (svr *grpcServer) FetchRoutes(ctx context.Context, req *v2.DiscoveryRequest) (*v2.DiscoveryResponse, error) {
-
+func (svr *xDSServer) FetchRoutes(ctx context.Context, req *v2.DiscoveryRequest) (*v2.DiscoveryResponse, error) {
+	response, err := svr.cache.FetchResponse(req)
+	if err != nil {
+		return nil, err
+	}
+	return buildResponse(response, resource.RouteType)
 }

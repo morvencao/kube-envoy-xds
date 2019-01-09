@@ -8,19 +8,36 @@ type Snapshot struct {
 	Routers		VersionedResources
 }
 
-func (snapshot *Snapshot) GetResourceVersion(string typeUrl) string {
+func (snapshot *Snapshot) GetResourceVersion(typeUrl string) string {
+	if snapshot == nil {
+		return ""
+	}
 	switch typeUrl {
 	case ClusterType:
 		return snapshot.Clusters.Version
 	case EndpointType:
 		return snapshot.Endpoints.Version
-	case ListenersType:
+	case ListenerType:
 		return snapshot.Listeners.Version
-	case RoutesType:
+	case RouteType:
 		return snapshot.Routers.Version
 	}
+	return ""
 }
 
-func (snapshot *Snapshot) GetResources(string typeUrl) {
-	
+func (snapshot *Snapshot) GetResources(typeUrl string) map[string]Resource {
+	if snapshot == nil {
+		return nil
+	}
+	switch typeUrl {
+	case ClusterType:
+		return snapshot.Clusters.Items
+	case EndpointType:
+		return snapshot.Endpoints.Items
+	case ListenerType:
+		return snapshot.Listeners.Items
+	case RouteType:
+		return snapshot.Routers.Items
+	}
+	return nil
 }
