@@ -127,7 +127,6 @@ data:
         connect_timeout: 5s
         type: strict_dns
         lb_policy: round_robin
-        http2_protocol_options: {}
         hosts:
         - socket_address:
             address: viewservice
