@@ -7,6 +7,9 @@ metadata:
 spec:
   type: ClusterIP
   ports:
+  - name: http-dataservice
+    port: 9090
+    targetPort: 9090
   - name: http-listener
     port: 8300
     targetPort: 8300

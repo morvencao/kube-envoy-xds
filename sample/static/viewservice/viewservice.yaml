@@ -7,6 +7,9 @@ metadata:
 spec:
   type: ClusterIP
   ports:
+  - name: http-viewservice
+    port: 9080
+    targetPort: 9080
   - name: http-listener
     port: 8100
     targetPort: 8100
