@@ -37,7 +37,7 @@ spec:
     spec:
       containers:
       - name: viewservice
-        image: morvencao/viewservice:v1.0
+        image: morvencao/viewservice:v2.0
         ports:
         - containerPort: 9080
       - name: sidecar-envoy
@@ -81,6 +81,9 @@ data:
         - filters:
           - name: envoy.http_connection_manager
             config:
+              generate_request_id: true
+              tracing:
+                operation_name: ingress
               codec_type: auto
               stat_prefix: ingress_http
               route_config:
@@ -106,8 +109,11 @@ data:
         - filters:
           - name: envoy.http_connection_manager
             config:
+              generate_request_id: true
+              tracing:
+                operation_name: egress
               codec_type: auto
-              stat_prefix: ingress_http
+              stat_prefix: egress_http
               route_config:
                 name: local_route
                 virtual_hosts:
@@ -140,3 +146,18 @@ data:
         - socket_address:
             address: dataservice
             port_value: 8300
+      - name: jaeger
+        connect_timeout: 1s
+        type: strict_dns
+        lb_policy: round_robin
+        hosts:
+        - socket_address:
+            address: jaeger
+            port_value: 9411
+    tracing:
+      http:
+        name: envoy.zipkin
+        config:
+          collector_cluster: jaeger
+          collector_endpoint: "/api/v1/spans"
+          shared_span_context: false

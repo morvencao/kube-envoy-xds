@@ -76,8 +76,11 @@ data:
         - filters:
           - name: envoy.http_connection_manager
             config:
+              generate_request_id: true
+              tracing:
+                operation_name: egress
               codec_type: auto
-              stat_prefix: ingress_http
+              stat_prefix: egress_http
               route_config:
                 name: local_route
                 virtual_hosts:
@@ -102,4 +105,18 @@ data:
         - socket_address:
             address: viewservice
             port_value: 8100
-   
+      - name: jaeger
+        connect_timeout: 1s
+        type: strict_dns
+        lb_policy: round_robin
+        hosts:
+        - socket_address:
+            address: jaeger
+            port_value: 9411
+    tracing:
+      http:
+        name: envoy.zipkin
+        config:
+          collector_cluster: jaeger
+          collector_endpoint: "/api/v1/spans"
+          shared_span_context: false
