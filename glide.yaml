@@ -25,3 +25,4 @@ import:
   version: db98d938078ca569af9a60a55feeb6123c31f171
 - package: github.com/sirupsen/logrus
   version: ^1.0.4
+- package: github.com/golang/glog
