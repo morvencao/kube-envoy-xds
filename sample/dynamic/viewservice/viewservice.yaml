@@ -1,0 +1,163 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: viewservice
+  labels:
+    app: view
+spec:
+  type: ClusterIP
+  ports:
+  - name: http-viewservice
+    port: 9080
+    targetPort: 9080
+  - name: http-listener
+    port: 8100
+    targetPort: 8100
+  - name: http-admin
+    port: 8101
+    targetPort: 8101
+  selector:
+    app: view
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: viewservice
+  labels:
+    app: view
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: view
+  template:
+    metadata:
+      labels:
+        app: view
+    spec:
+      containers:
+      - name: viewservice
+        image: morvencao/viewservice:v2.0
+        ports:
+        - containerPort: 9080
+      - name: sidecar-envoy
+        image: envoyproxy/envoy:latest
+        ports:
+        - containerPort: 8100
+        - containerPort: 8101
+        command: ["/usr/local/bin/envoy"]
+        args: ["-c", "/etc/envoy-config/sidecar-envoy.yaml", "--service-cluster", "viewservice", "--log-format", "[METADATA][%Y-%m-%d %T.%e][%t][%l][%n] %v"]
+        volumeMounts:
+        - name: envoy-config
+          mountPath: /etc/envoy-config/
+      volumes:
+      - name: envoy-config
+        configMap:
+          name: view-sidecar
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: view-sidecar
+  labels:
+    app: view
+data:
+  sidecar-envoy.yaml: |-
+    # frontend envoy proxy configuration
+    admin:
+      access_log_path: "/var/log/acces.log"
+      address:
+        socket_address:
+          address: 0.0.0.0
+          port_value: 8101
+    static_resources:
+      listeners:
+      - name: viewservice-http_listener
+        address:
+          socket_address:
+            address: 0.0.0.0
+            port_value: 8100
+        filter_chains:
+        - filters:
+          - name: envoy.http_connection_manager
+            config:
+              generate_request_id: true
+              tracing:
+                operation_name: ingress
+              codec_type: auto
+              stat_prefix: ingress_http
+              route_config:
+                name: local_route
+                virtual_hosts:
+                - name: backend
+                  domains:
+                  - "*"
+                  routes:
+                  - match:
+                      prefix: "/view"
+                    route:
+                      cluster: viewservice
+              http_filters:
+              - name: envoy.router
+                config: {}
+      - name: dataservice-http_listener
+        address:
+          socket_address:
+            address: 0.0.0.0
+            port_value: 8200
+        filter_chains:
+        - filters:
+          - name: envoy.http_connection_manager
+            config:
+              generate_request_id: true
+              tracing:
+                operation_name: egress
+              codec_type: auto
+              stat_prefix: egress_http
+              route_config:
+                name: local_route
+                virtual_hosts:
+                - name: backend
+                  domains:
+                  - "*"
+                  routes:
+                  - match:
+                      prefix: "/data"
+                    route:
+                      cluster: dataservice
+              http_filters:
+              - name: envoy.router
+                config: {}
+      clusters:
+      - name: viewservice
+        connect_timeout: 5s
+        type: strict_dns
+        lb_policy: round_robin
+        hosts:
+        - socket_address:
+            address: viewservice
+            port_value: 9080
+      - name: dataservice
+        connect_timeout: 5s
+        type: strict_dns
+        lb_policy: round_robin
+        http2_protocol_options: {}
+        hosts:
+        - socket_address:
+            address: dataservice
+            port_value: 8300
+      - name: jaeger
+        connect_timeout: 1s
+        type: strict_dns
+        lb_policy: round_robin
+        hosts:
+        - socket_address:
+            address: jaeger
+            port_value: 9411
+    tracing:
+      http:
+        name: envoy.zipkin
+        config:
+          collector_cluster: jaeger
+          collector_endpoint: "/api/v1/spans"
+          shared_span_context: false

@@ -24,8 +24,8 @@ static_resources:
     http2_protocol_options: {}
     name: xds_cluster
 admin:
-  access_log_path: /dev/null
+  access_log_path: "/var/log/acces.log"
   address:
     socket_address:
-      address: 127.0.0.1
+      address: 0.0.0.0
       port_value: 8001
