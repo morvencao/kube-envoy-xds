@@ -4,12 +4,14 @@ import (
 	"fmt"
 	"sync"
 
+	"github.com/golang/glog"
+
 	v2 "github.com/morvencao/kube-envoy-xds/envoy/api/v2"
 	resource "github.com/morvencao/kube-envoy-xds/pkg/resource"
 )
 
 type Cache interface {
-	CreateResponse(*v2.DiscoveryRequest, chan resource.Response) error
+	CreateResponse(*v2.DiscoveryRequest) (*resource.Response, error)
 	FetchResponse(*v2.DiscoveryRequest) (*resource.Response, error)
 }
 
@@ -30,8 +32,9 @@ func NewSnapshotCache() SnapshotCache {
 	}
 }
 
-func (scache *snapshotCache) CreateResponse(req *v2.DiscoveryRequest, responseChan chan resource.Response) error {
+func (scache *snapshotCache) CreateResponse(req *v2.DiscoveryRequest) (*resource.Response, error) {
 	nodeID := resource.GetNodeID(req.Node)
+	glog.Infof("starting to generate new xDS response for node: %s", nodeID)
 
 	scache.mu.Lock()
 	defer scache.mu.Unlock()
@@ -39,16 +42,18 @@ func (scache *snapshotCache) CreateResponse(req *v2.DiscoveryRequest, responseCh
 	snapshot, exists := scache.snapshots[nodeID]
 	if !exists || snapshot.GetResourceVersion(req.TypeUrl) == req.VersionInfo {
 		// TODO: wait until update for resource are ready.
-		return fmt.Errorf("no new version found")
+		glog.Errorf("no new version of xDS response found for node: %s", nodeID)
+		return nil, fmt.Errorf("no new version found")
 	}
 
 	newVersion := snapshot.GetResourceVersion(req.TypeUrl)
+	glog.Infof("new version: %s of xDS response found", newVersion)
 	// Create response from cache
-	responseChan <- scache.GenerateResponse(req, snapshot.GetResources(req.TypeUrl), newVersion)
-	return nil
+	return scache.GenerateResponse(req, snapshot.GetResources(req.TypeUrl), newVersion), nil
 }
 
-func (scache *snapshotCache) GenerateResponse(req *v2.DiscoveryRequest, resources map[string]resource.Resource, version string) resource.Response {
+func (scache *snapshotCache) GenerateResponse(req *v2.DiscoveryRequest, resources map[string]resource.Resource, version string) *resource.Response {
+	glog.Infof("filtering the requested resources in version: %s", version)
 	out := make([]resource.Resource, 0, len(resources))
 	if len(req.ResourceNames) != 0 {
 		for i, res := range resources {
@@ -62,7 +67,7 @@ func (scache *snapshotCache) GenerateResponse(req *v2.DiscoveryRequest, resource
 		}
 	}
 
-	return resource.Response{
+	return &resource.Response{
 		Version: version,
 		Resources: out,
 	}
@@ -79,18 +84,21 @@ func contains(s []string, item string) bool {
 
 func (scache *snapshotCache) FetchResponse(req *v2.DiscoveryRequest) (*resource.Response, error) {
 	nodeID := resource.GetNodeID(req.Node)
+	glog.Infof("fetching single xDS response from cache for node: %s", nodeID)
 
 	scache.mu.Lock()
 	defer scache.mu.Unlock()
 
 	snapshot, exists := scache.snapshots[nodeID]
 	if !exists || snapshot.GetResourceVersion(req.TypeUrl) == req.VersionInfo {
+		glog.Errorf("no new version of single xDS response found for node: %s", nodeID)
 		return nil, fmt.Errorf("no new version found")
 	}
 
 	newVersion := snapshot.GetResourceVersion(req.TypeUrl)
+	glog.Infof("new version: %s of single xDS response found", newVersion)
 	resp := scache.GenerateResponse(req, snapshot.GetResources(req.TypeUrl), newVersion)
-	return &resp, nil
+	return resp, nil
 }
 
 func (scache *snapshotCache) SetSnapshot(nodeID string, snapshot resource.Snapshot) {

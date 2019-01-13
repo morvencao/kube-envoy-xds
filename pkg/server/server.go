@@ -7,8 +7,11 @@ import (
 	"sync/atomic"
 
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 	"github.com/gogo/protobuf/proto"
 	"github.com/gogo/protobuf/types"
+	"github.com/golang/glog"
 
 	v2 "github.com/morvencao/kube-envoy-xds/envoy/api/v2"
 	cache "github.com/morvencao/kube-envoy-xds/pkg/cache"
@@ -27,6 +30,7 @@ type xDSServer struct {
 }
 
 func NewXDSServer(cache cache.Cache) (XDSServer, error) {
+	glog.Infof("creating the xDS server with cache: %v", cache)
 	return &xDSServer{cache: cache}, nil
 }
 
@@ -60,18 +64,23 @@ func buildResponse(response *resource.Response, typeUrl string) (*v2.DiscoveryRe
 }
 
 func (svr *xDSServer) processReq(stream v2.ClusterDiscoveryService_StreamClustersServer, reqCh <-chan *v2.DiscoveryRequest) error {
-	clustersChan := make(chan resource.Response)
-	endpointsChan := make(chan resource.Response)
-	listenersChan := make(chan resource.Response)
-	routersChan := make(chan resource.Response)
+	clustersChan := make(chan resource.Response, 1)
+	endpointsChan := make(chan resource.Response, 1)
+	listenersChan := make(chan resource.Response, 1)
+	routersChan := make(chan resource.Response, 1)
 
 	var clustersNonce, endpointsNonce, listenersNonce, routersNonce string
 
 	streamNonce := int64(0)
 
+	glog.Info("starting process the xDS request on the stream...")
 	for {
 		select {
-		case clusters := <-clustersChan:
+		case clusters, more := <-clustersChan:
+			if !more {
+				return status.Errorf(codes.Unavailable, "get clusters failed")
+			}
+			glog.Infof("ready to send the new CDS response with the stream: %v", clusters)
 			out, err := buildResponse(&clusters, resource.ClusterType)
 			if err != nil {
 				return err
@@ -79,9 +88,14 @@ func (svr *xDSServer) processReq(stream v2.ClusterDiscoveryService_StreamCluster
 			currentNonce := atomic.AddInt64(&streamNonce, 1)
 			out.Nonce = strconv.FormatInt(currentNonce, 10)
 			clustersNonce = out.Nonce
-			err = stream.Send(out)
-			return err
-		case endpoints := <-endpointsChan:
+			if err := stream.Send(out); err!= nil {
+				return err
+			}
+		case endpoints, more := <-endpointsChan:
+			if !more {
+				return status.Errorf(codes.Unavailable, "get endpoints failed")
+			}
+			glog.Infof("ready to send the new EDS response with the stream: %v", endpoints)
 			out, err := buildResponse(&endpoints, resource.EndpointType)
 			if err != nil {
 				return err
@@ -89,9 +103,14 @@ func (svr *xDSServer) processReq(stream v2.ClusterDiscoveryService_StreamCluster
 			currentNonce := atomic.AddInt64(&streamNonce, 1)
 			out.Nonce = strconv.FormatInt(currentNonce, 10)
 			endpointsNonce = out.Nonce
-			err = stream.Send(out)
-			return err
-		case listeners := <-listenersChan:
+			if err := stream.Send(out); err!= nil {
+				return err
+			}
+		case listeners, more := <-listenersChan:
+			if !more {
+				return status.Errorf(codes.Unavailable, "get listeners failed")
+			}
+			glog.Infof("ready to send the new LDS response with the stream: %v", listeners)
 			out, err := buildResponse(&listeners, resource.ListenerType)
 			if err != nil {
 				return err
@@ -99,9 +118,14 @@ func (svr *xDSServer) processReq(stream v2.ClusterDiscoveryService_StreamCluster
 			currentNonce := atomic.AddInt64(&streamNonce, 1)
 			out.Nonce = strconv.FormatInt(currentNonce, 10)
 			listenersNonce = out.Nonce
-			err = stream.Send(out)
-			return err
-		case routers := <-routersChan:
+			if err := stream.Send(out); err!= nil {
+				return err
+			}
+		case routers, more := <-routersChan:
+			if !more {
+				return status.Errorf(codes.Unavailable, "get routers failed")
+			}
+			glog.Infof("ready to send the new RDS response with the stream: %v", routers)
 			out, err := buildResponse(&routers, resource.RouteType)
 			if err != nil {
 				return err
@@ -109,13 +133,16 @@ func (svr *xDSServer) processReq(stream v2.ClusterDiscoveryService_StreamCluster
 			currentNonce := atomic.AddInt64(&streamNonce, 1)
 			out.Nonce = strconv.FormatInt(currentNonce, 10)
 			routersNonce = out.Nonce
-			err = stream.Send(out)
-			return err
+			if err := stream.Send(out); err!= nil {
+				return err
+			}
 		case req, more := <-reqCh:
 			if !more {
+				glog.Warning("no more xDS request on the stream, exiting...")
 				return nil
 			}
 			if req == nil {
+				glog.Error("empty xDS request on the stream, exiting...")
 				return fmt.Errorf("empty request")
 			}
 			repNonce := req.GetResponseNonce()
@@ -123,21 +150,38 @@ func (svr *xDSServer) processReq(stream v2.ClusterDiscoveryService_StreamCluster
 
 			switch {
 			case typeUrl == resource.ClusterType && (clustersNonce == "" || clustersNonce == repNonce):
-				if err := svr.cache.CreateResponse(req, clustersChan); err != nil {
+				glog.Infof("last CDS response has been sent, ready to process the new CDS request: %v", req)
+				resp, err := svr.cache.CreateResponse(req)
+				if err != nil {
+					glog.Errorf("failed to create CDS response from cache: %v", err)
 					return err
 				}
+				glog.Infof("CDS response from cache: %v", *resp)
+				clustersChan <- *resp
 			case typeUrl == resource.EndpointType && (endpointsNonce == "" || endpointsNonce == repNonce):
-				if err := svr.cache.CreateResponse(req, endpointsChan); err != nil {
+				glog.Infof("last EDS response has been sent, ready to process the new EDS request: %v", req)
+				resp, err := svr.cache.CreateResponse(req)
+				if err != nil {
+					glog.Errorf("failed to create EDS response from cache: %v", err)
 					return err
 				}
-			case typeUrl == resource.EndpointType && (listenersNonce == "" || listenersNonce == repNonce):
-				if err := svr.cache.CreateResponse(req, listenersChan); err != nil {
+				endpointsChan <- *resp
+			case typeUrl == resource.ListenerType && (listenersNonce == "" || listenersNonce == repNonce):
+				glog.Infof("last LDS response has been sent, ready to process the new LDS request: %v", req)
+				resp, err := svr.cache.CreateResponse(req)
+				if err != nil {
+					glog.Errorf("failed to create LDS response from cache: %v", err)
 					return err
 				}
-			case typeUrl == resource.EndpointType && (routersNonce == "" || routersNonce == repNonce):
-				if err := svr.cache.CreateResponse(req, routersChan); err != nil {
+				listenersChan <- *resp
+			case typeUrl == resource.RouteType && (routersNonce == "" || routersNonce == repNonce):
+				glog.Infof("last RDS response has been sent, ready to process the new RDS request: %v", req)
+				resp, err := svr.cache.CreateResponse(req)
+				if err != nil {
+					glog.Errorf("failed to create RDS response from cache: %v", err)
 					return err
 				}
+				routersChan <- *resp
 			}
 		}
 	}
@@ -157,6 +201,7 @@ func (svr *xDSServer) handler(stream xDSStream) error {
 				close(reqCh)
 				return
 			}
+			glog.Infof("get new xDS request on the stream: %v", req)
 			reqCh <- req
 		}
 	}()
@@ -168,6 +213,7 @@ func (svr *xDSServer) handler(stream xDSStream) error {
 }
 
 func (svr *xDSServer) StreamClusters(stream v2.ClusterDiscoveryService_StreamClustersServer) error {
+	glog.Info("starting handling CDS stream request...")
 	return svr.handler(stream)
 }
 
@@ -176,6 +222,7 @@ func (svr *xDSServer) IncrementalClusters(stream v2.ClusterDiscoveryService_Incr
 }
 
 func (svr *xDSServer) FetchClusters(ctx context.Context, req *v2.DiscoveryRequest) (*v2.DiscoveryResponse, error) {
+	glog.Infof("fetching clusters for single CDS request: %v", req)
 	response, err := svr.cache.FetchResponse(req)
 	if err != nil {
 		return nil, err
@@ -184,10 +231,12 @@ func (svr *xDSServer) FetchClusters(ctx context.Context, req *v2.DiscoveryReques
 }
 
 func (svr *xDSServer) StreamEndpoints(stream v2.EndpointDiscoveryService_StreamEndpointsServer) error {
+	glog.Info("starting handling EDS stream request...")
 	return svr.handler(stream)
 }
 
 func (svr *xDSServer) FetchEndpoints(ctx context.Context, req *v2.DiscoveryRequest) (*v2.DiscoveryResponse, error) {
+	glog.Infof("fetching endpoints for single EDS request: %v", req)
 	response, err := svr.cache.FetchResponse(req)
 	if err != nil {
 		return nil, err
@@ -196,10 +245,12 @@ func (svr *xDSServer) FetchEndpoints(ctx context.Context, req *v2.DiscoveryReque
 }
 
 func (svr *xDSServer) StreamListeners(stream v2.ListenerDiscoveryService_StreamListenersServer) error {
+	glog.Info("starting handling LDS stream request...")
 	return svr.handler(stream)
 }
 
 func (svr *xDSServer) FetchListeners(ctx context.Context, req *v2.DiscoveryRequest) (*v2.DiscoveryResponse, error) {
+	glog.Infof("fetching listeners for single LDS request: %v", req)
 	response, err := svr.cache.FetchResponse(req)
 	if err != nil {
 		return nil, err
@@ -208,12 +259,14 @@ func (svr *xDSServer) FetchListeners(ctx context.Context, req *v2.DiscoveryReque
 }
 
 func (svr *xDSServer) StreamRoutes(stream v2.RouteDiscoveryService_StreamRoutesServer) error {
+	glog.Info("starting handling RDS stream request...")
 	return svr.handler(stream)
 }
 func (svr *xDSServer) IncrementalRoutes(stream v2.RouteDiscoveryService_IncrementalRoutesServer) error {
 	return fmt.Errorf("not implemented")
 }
 func (svr *xDSServer) FetchRoutes(ctx context.Context, req *v2.DiscoveryRequest) (*v2.DiscoveryResponse, error) {
+	glog.Infof("fetching routes for single RDS request: %v", req)
 	response, err := svr.cache.FetchResponse(req)
 	if err != nil {
 		return nil, err

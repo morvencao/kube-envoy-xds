@@ -4,6 +4,7 @@ import (
 	"time"
 
 	proto "github.com/gogo/protobuf/proto"
+	types "github.com/gogo/protobuf/types"
 	core "github.com/morvencao/kube-envoy-xds/envoy/api/v2/core"
 	endpoint "github.com/morvencao/kube-envoy-xds/envoy/api/v2/endpoint"
 	listener "github.com/morvencao/kube-envoy-xds/envoy/api/v2/listener"
@@ -139,7 +140,7 @@ func MakeEndpoint(clusterName string, host string, port uint32) *v2.ClusterLoadA
 }
 
 // MakeHTTPListener creates listener with given listener name, host, port and route
-func MakeHTTPListener(listenerName string, host string, port uint32, routeName string) *v2.Listener {
+func MakeHTTPListener(listenerName string, host string, port uint32, trafficDirection string, routeName string) *v2.Listener {
 	// RDS configuration source 
 	rdsSource := core.ConfigSource{
 		ConfigSourceSpecifier: &core.ConfigSource_ApiConfigSource{
@@ -173,10 +174,26 @@ func MakeHTTPListener(listenerName string, host string, port uint32, routeName s
 		panic(err)
 	}
 
+	var tracingOperationName hcm.HttpConnectionManager_Tracing_OperationName
+	switch {
+	case trafficDirection == "ingress":
+		tracingOperationName = hcm.INGRESS
+	case trafficDirection == "egress":
+		tracingOperationName = hcm.EGRESS
+	default:
+		tracingOperationName = hcm.INGRESS
+	}
+	
 	// HTTP filter configuration
 	hcManager := &hcm.HttpConnectionManager{
-		CodecType:  hcm.AUTO,
-		StatPrefix: "ingress_http",
+		GenerateRequestId: &types.BoolValue{
+			Value: true,
+		},
+		Tracing: &hcm.HttpConnectionManager_Tracing{
+			OperationName: tracingOperationName,
+		},
+		CodecType: hcm.AUTO,
+		StatPrefix: trafficDirection + "_http",
 		RouteSpecifier: &hcm.HttpConnectionManager_Rds{
 			Rds: &hcm.Rds{
 				ConfigSource:    rdsSource,
