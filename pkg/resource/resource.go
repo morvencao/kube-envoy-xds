@@ -176,7 +176,7 @@ func MakeHTTPListener(listenerName string, host string, port uint32, routeName s
 	// HTTP filter configuration
 	hcManager := &hcm.HttpConnectionManager{
 		CodecType:  hcm.AUTO,
-		StatPrefix: "http",
+		StatPrefix: "ingress_http",
 		RouteSpecifier: &hcm.HttpConnectionManager_Rds{
 			Rds: &hcm.Rds{
 				ConfigSource:    rdsSource,
@@ -223,7 +223,7 @@ func MakeHTTPListener(listenerName string, host string, port uint32, routeName s
 }
 
 // MakeRoute
-func MakeRoute(clusterName, routeName string) *v2.RouteConfiguration {
+func MakeRoute(clusterName, routeName, prefix string) *v2.RouteConfiguration {
 	return &v2.RouteConfiguration{
 		Name: routeName,
 		VirtualHosts: []route.VirtualHost{{
@@ -232,7 +232,7 @@ func MakeRoute(clusterName, routeName string) *v2.RouteConfiguration {
 			Routes: []route.Route{{
 				Match: route.RouteMatch{
 					PathSpecifier: &route.RouteMatch_Prefix{
-						Prefix: "/",
+						Prefix: prefix,
 					},
 				},
 				Action: &route.Route_Route{

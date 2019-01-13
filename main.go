@@ -19,20 +19,22 @@ var port = flag.Int("port", 10000, "The gRPC server port")
 const (
 	version1 = "v1.0"
 	version2 = "v2.0"
-	clusterName = "cluster0"
-	epHost = "localhost"
-	epPort = 8080
-	listenerName = "listener0"
-	listenerHost = "0.0.0.0"
-	listenerPort = 80
-	routeName = "route0"
+	dataserviceEnvoyNode = "dataservice-envoy"
+	dataserviceClusterName = "dataservice"
+	dataserviceEndpointHost = "dataservice"
+	dataserviceEndpointPort = 9090
+	dataserviceListenerName = "dataservice-http_listener"
+	dataserviceListenerHost = "0.0.0.0"
+	dataserviceListenerPort = 8300
+	dataserviceRouteName = "local_route"
+	dataservicePrefix = "/data"
 )
 
 var (
-	cluster = resource.MakeCluster(clusterName)
-	endpoint = resource.MakeEndpoint(clusterName, epHost, epPort)
-	listener = resource.MakeHTTPListener(listenerName, listenerHost, listenerPort, routeName)
-	router = resource.MakeRoute(clusterName, routeName)
+	cluster = resource.MakeCluster(dataserviceClusterName)
+	endpoint = resource.MakeEndpoint(dataserviceClusterName, dataserviceEndpointHost, dataserviceEndpointPort)
+	listener = resource.MakeHTTPListener(dataserviceListenerName, dataserviceListenerHost, dataserviceListenerPort, dataserviceRouteName)
+	router = resource.MakeRoute(dataserviceClusterName, dataserviceRouteName, dataservicePrefix)
 )
 
 func main() {
@@ -44,7 +46,7 @@ func main() {
 	
 	snapshotCache := cache.NewSnapshotCache()
 	snapshot := resource.NewSnapshot(version1, []resource.Resource{cluster}, []resource.Resource{endpoint}, []resource.Resource{listener}, []resource.Resource{router})
-	snapshotCache.SetSnapshot(resource.AnyNode, snapshot)
+	snapshotCache.SetSnapshot(dataserviceEnvoyNode, snapshot)
 
 	grpcSvr := grpc.NewServer()
 	xdsSvr, err := xds.NewXDSServer(snapshotCache)
