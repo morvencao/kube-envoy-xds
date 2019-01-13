@@ -7,7 +7,24 @@
 SHELL 	:= /bin/bash
 BINDIR	:= bin
 
+.PHONY: build
+build: vendor
+	@echo "---> building"
+	@go build
 
+.PHONY: clean
+clean:
+	@echo "--> cleaning compiled objects and binaries"
+	@go clean
+	@rm -rf $(BINDIR)/*
+
+.PHONY: check
+check: vet
+
+.PHONY: vet
+vet: tools.govet
+	@echo "--> checking code correctness with 'go vet' tool"
+	@go vet ./...
 
 #-----------------
 #-- code generaion
