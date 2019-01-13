@@ -29,10 +29,11 @@ def view(id):
         if header in request.headers:
             headers[header] = request.headers[header]
     # call model service from view service
-    resp = requests.get("http://localhost:8200/data?id=" + id, headers=headers)
+    resp = requests.get("http://localhost:8200/data/" + id, headers=headers)
+    out = resp.text.split('-')
     
-    return ('Get data: {} from behind Envoy! hostname: {} resolved'
-            'hostname: {}\n'.format(resp.text, socket.gethostname(),
+    return ('Get data: <b>{}</b> from {} behind Envoy! <br>hostname: {} resolved<br>'
+            'hostname: {}\n'.format(out[0], out[1], socket.gethostname(),
                                     socket.gethostbyname(socket.gethostname())))
 
 if __name__ == "__main__":

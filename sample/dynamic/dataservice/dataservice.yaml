@@ -37,7 +37,7 @@ spec:
     spec:
       containers:
       - name: dataservice
-        image: morvencao/dataservice:v1.0
+        image: morvencao/dataservice:v2.0
         ports:
         - containerPort: 9090
       - name: sidecar-envoy

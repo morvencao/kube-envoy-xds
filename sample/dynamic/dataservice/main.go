@@ -2,18 +2,18 @@ package main
 
 import (
 	"fmt"
-	"log"
+	"os"
 	"net/http"
 )
 
 func handler(w http.ResponseWriter, r *http.Request) {
-	ids, ok := r.URL.Query()["id"]
-	if !ok || len(ids[0]) < 1 {
-		log.Fatalf("Url Param 'id' is missing")
+	hostname, err := os.Hostname()
+	if err != nil {
+		panic(err)
 	}
-	
-	id := ids[0]
-	fmt.Fprintf(w, "hello, this is data from %s", id)
+
+	id := r.URL.Path[len("/data/"):]
+	fmt.Fprintf(w, "hello, this is data %s-%s", id, hostname)
 }
 
 func main() {
