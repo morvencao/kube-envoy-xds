@@ -7,10 +7,14 @@
 SHELL 	:= /bin/bash
 BINDIR	:= bin
 
+.PHONY: docker
+docker: build
+	@docker build -f Dockerfile -t morvencao/envoy-xds:v1.0 .
+
 .PHONY: build
 build: vendor
 	@echo "---> building"
-	@go build
+	@CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o kube-envoy-xds .
 
 .PHONY: clean
 clean:

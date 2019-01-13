@@ -37,3 +37,8 @@ make check
 ```sh
 make build
 ```
+
+6. Build docker image
+```sh
+make docker
+```

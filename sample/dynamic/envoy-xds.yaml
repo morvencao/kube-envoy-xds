@@ -1,0 +1,36 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: envoy-xds
+  labels:
+    app: envoy-xds
+spec:
+  type: ClusterIP
+  ports:
+  - name: http
+    port: 15010
+    targetPort: 15010
+  selector:
+    app: envoy-xds
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: envoy-xds
+  labels:
+    app: envoy-xds
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: envoy-xds
+  template:
+    metadata:
+      labels:
+        app: envoy-xds
+    spec:
+      containers:
+      - name: envoy-xds
+        image: morvencao/envoy-xds:v1.0
+        ports:
+        - containerPort: 15010
