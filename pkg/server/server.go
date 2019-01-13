@@ -76,8 +76,8 @@ func (svr *xDSServer) processReq(stream v2.ClusterDiscoveryService_StreamCluster
 			if err != nil {
 				return err
 			}
-			streamNonce = atomic.AddInt64(&streamNonce, 1)
-			out.Nonce = strconv.FormatInt(streamNonce, 10)
+			currentNonce := atomic.AddInt64(&streamNonce, 1)
+			out.Nonce = strconv.FormatInt(currentNonce, 10)
 			clustersNonce = out.Nonce
 			err = stream.Send(out)
 			return err
@@ -86,8 +86,8 @@ func (svr *xDSServer) processReq(stream v2.ClusterDiscoveryService_StreamCluster
 			if err != nil {
 				return err
 			}
-			streamNonce = atomic.AddInt64(&streamNonce, 1)
-			out.Nonce = strconv.FormatInt(streamNonce, 10)
+			currentNonce := atomic.AddInt64(&streamNonce, 1)
+			out.Nonce = strconv.FormatInt(currentNonce, 10)
 			endpointsNonce = out.Nonce
 			err = stream.Send(out)
 			return err
@@ -96,8 +96,8 @@ func (svr *xDSServer) processReq(stream v2.ClusterDiscoveryService_StreamCluster
 			if err != nil {
 				return err
 			}
-			streamNonce = atomic.AddInt64(&streamNonce, 1)
-			out.Nonce = strconv.FormatInt(streamNonce, 10)
+			currentNonce := atomic.AddInt64(&streamNonce, 1)
+			out.Nonce = strconv.FormatInt(currentNonce, 10)
 			listenersNonce = out.Nonce
 			err = stream.Send(out)
 			return err
@@ -106,8 +106,8 @@ func (svr *xDSServer) processReq(stream v2.ClusterDiscoveryService_StreamCluster
 			if err != nil {
 				return err
 			}
-			streamNonce = atomic.AddInt64(&streamNonce, 1)
-			out.Nonce = strconv.FormatInt(streamNonce, 10)
+			currentNonce := atomic.AddInt64(&streamNonce, 1)
+			out.Nonce = strconv.FormatInt(currentNonce, 10)
 			routersNonce = out.Nonce
 			err = stream.Send(out)
 			return err
