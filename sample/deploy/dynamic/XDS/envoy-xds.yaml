@@ -34,3 +34,5 @@ spec:
         image: morvencao/envoy-xds:v2.0
         ports:
         - containerPort: 15010
+        command: ["./kube-envoy-xds"]
+        args: ["-mode", "xds"]

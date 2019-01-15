@@ -28,6 +28,8 @@ const (
 const (
 	AnyNode = "anynode"
 	XdsCluster = "xds_cluster"
+	XDS = "xds"
+	ADS = "ads"
 	HTTPConnectionManager = "envoy.http_connection_manager"
 	HTTPGRPCAccessLog = "envoy.http_grpc_access_log"
 	Router = "envoy.router"
@@ -92,32 +94,43 @@ func GetNodeID(node *core.Node) string {
 }
 
 // MakeCluster creates cluster of EDS with given cluster name.
-func MakeCluster(clusterName string) *v2.Cluster {
+func MakeCluster(mode, clusterName string) *v2.Cluster {
+	var edsSource *core.ConfigSource
+	switch mode {
+	case XDS:
+		edsSource = &core.ConfigSource{
+			ConfigSourceSpecifier: &core.ConfigSource_ApiConfigSource{
+				ApiConfigSource: &core.ApiConfigSource{
+					ApiType: core.ApiConfigSource_GRPC,
+					GrpcServices: []*core.GrpcService{{
+						TargetSpecifier: &core.GrpcService_EnvoyGrpc_{
+							EnvoyGrpc: &core.GrpcService_EnvoyGrpc{
+								ClusterName: XdsCluster,
+							},
+						},
+					}},
+				},
+			},
+		}
+	case ADS:
+		edsSource = &core.ConfigSource{
+			ConfigSourceSpecifier: &core.ConfigSource_Ads{
+				Ads: &core.AggregatedConfigSource{},
+			},
+		}
+	}
 	return &v2.Cluster{
 		Name: clusterName,
 		ConnectTimeout: 5*time.Second,
 		Type: v2.Cluster_EDS,
 		EdsClusterConfig: &v2.Cluster_EdsClusterConfig{
-			EdsConfig: &core.ConfigSource{
-				ConfigSourceSpecifier: &core.ConfigSource_ApiConfigSource{
-					ApiConfigSource: &core.ApiConfigSource{
-						ApiType: core.ApiConfigSource_GRPC,
-						GrpcServices: []*core.GrpcService{{
-							TargetSpecifier: &core.GrpcService_EnvoyGrpc_{
-								EnvoyGrpc: &core.GrpcService_EnvoyGrpc{
-									ClusterName: XdsCluster,
-								},
-							},
-						}},
-					},
-				},
-			},
+			EdsConfig: edsSource,
 		},
 	}
 }
 
 // MakeEndpoint creates  endpoint on given host and port.
-func MakeEndpoint(clusterName string, host string, port uint32) *v2.ClusterLoadAssignment {
+func MakeEndpoint(clusterName, host string, port uint32) *v2.ClusterLoadAssignment {
 	return &v2.ClusterLoadAssignment{
 		ClusterName: clusterName,
 		Endpoints: []endpoint.LocalityLbEndpoints{{
@@ -141,21 +154,31 @@ func MakeEndpoint(clusterName string, host string, port uint32) *v2.ClusterLoadA
 }
 
 // MakeHTTPListener creates listener with given listener name, host, port and route
-func MakeHTTPListener(listenerName string, host string, port uint32, trafficDirection string, routeName string) *v2.Listener {
-	// RDS configuration source 
-	rdsSource := core.ConfigSource{
-		ConfigSourceSpecifier: &core.ConfigSource_ApiConfigSource{
-			ApiConfigSource: &core.ApiConfigSource{
-				ApiType: core.ApiConfigSource_GRPC,
-				GrpcServices: []*core.GrpcService{{
-					TargetSpecifier: &core.GrpcService_EnvoyGrpc_{
-						EnvoyGrpc: &core.GrpcService_EnvoyGrpc{ClusterName: XdsCluster},
-					},
-				}},
+func MakeHTTPListener(mode, listenerName, host string, port uint32, trafficDirection, routeName string) *v2.Listener {
+	// RDS configuration source
+	var rdsSource core.ConfigSource
+	switch mode {
+	case XDS:
+		rdsSource = core.ConfigSource{
+			ConfigSourceSpecifier: &core.ConfigSource_ApiConfigSource{
+				ApiConfigSource: &core.ApiConfigSource{
+					ApiType: core.ApiConfigSource_GRPC,
+					GrpcServices: []*core.GrpcService{{
+						TargetSpecifier: &core.GrpcService_EnvoyGrpc_{
+							EnvoyGrpc: &core.GrpcService_EnvoyGrpc{ClusterName: XdsCluster},
+						},
+					}},
+				},
 			},
-		},
+		}
+	case ADS:
+		rdsSource = core.ConfigSource{
+			ConfigSourceSpecifier: &core.ConfigSource_Ads{
+				Ads: &core.AggregatedConfigSource{},
+			},
+		}
 	}
-
+	
 	// access log configuration
 	accessLogConfig := &al.HttpGrpcAccessLogConfig{
 		CommonConfig: &al.CommonGrpcAccessLogConfig{
@@ -240,7 +263,7 @@ func MakeHTTPListener(listenerName string, host string, port uint32, trafficDire
 	}
 }
 
-// MakeRoute
+// MakeRoute create an HTTP route to given cluster
 func MakeRoute(clusterName, routeName, prefix string) *v2.RouteConfiguration {
 	return &v2.RouteConfiguration{
 		Name: routeName,

@@ -16,7 +16,8 @@ import (
 	"google.golang.org/grpc"
 )
 
-var port = flag.Int("port", 15010, "The gRPC server port")
+var port = flag.Int("port", 15010, "The gRPC server port.")
+var mode = flag.String("mode", "xds", "The mode of envoy management server, can be 'xds' or 'ads'(default value).")
 
 const (
 	version1 = "v1.0"
@@ -33,19 +34,17 @@ const (
 	dataservicePrefix = "/data"
 )
 
-var (
-	cluster = resource.MakeCluster(dataserviceClusterName)
-	endpoint = resource.MakeEndpoint(dataserviceClusterName, dataserviceEndpointHost, dataserviceEndpointPort)
-	listener = resource.MakeHTTPListener(dataserviceListenerName, dataserviceListenerHost, dataserviceListenerPort, dataserviceTrafficDirection, dataserviceRouteName)
-	router = resource.MakeRoute(dataserviceClusterName, dataserviceRouteName, dataservicePrefix)
-)
-
 func main() {
 	flag.Parse()
 	lis, err := net.Listen("tcp", fmt.Sprintf("0.0.0.0:%v", *port))
 	if err != nil {
 		glog.Fatalf("failed to listen: %v", err)
 	}
+
+	cluster := resource.MakeCluster(*mode, dataserviceClusterName)
+	endpoint := resource.MakeEndpoint(dataserviceClusterName, dataserviceEndpointHost, dataserviceEndpointPort)
+	listener := resource.MakeHTTPListener(*mode, dataserviceListenerName, dataserviceListenerHost, dataserviceListenerPort, dataserviceTrafficDirection, dataserviceRouteName)
+	router := resource.MakeRoute(dataserviceClusterName, dataserviceRouteName, dataservicePrefix)
 	
 	snapshotCache := cache.NewSnapshotCache()
 	snapshot := resource.NewSnapshot(version1, []resource.Resource{cluster}, []resource.Resource{endpoint}, []resource.Resource{listener}, []resource.Resource{router})

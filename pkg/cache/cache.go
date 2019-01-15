@@ -34,7 +34,7 @@ func NewSnapshotCache() SnapshotCache {
 
 func (scache *snapshotCache) CreateResponse(req *v2.DiscoveryRequest) (*resource.Response, error) {
 	nodeID := resource.GetNodeID(req.Node)
-	glog.Infof("starting to generate new xDS response for node: %s", nodeID)
+	glog.Infof("starting to create discovery response from cache for node: %s", nodeID)
 
 	scache.mu.Lock()
 	defer scache.mu.Unlock()
@@ -42,12 +42,12 @@ func (scache *snapshotCache) CreateResponse(req *v2.DiscoveryRequest) (*resource
 	snapshot, exists := scache.snapshots[nodeID]
 	if !exists || snapshot.GetResourceVersion(req.TypeUrl) == req.VersionInfo {
 		// TODO: wait until update for resource are ready.
-		glog.Errorf("no new version of xDS response found for node: %s", nodeID)
+		glog.Errorf("no new version of discovery response found for node: %s", nodeID)
 		return nil, fmt.Errorf("no new version found")
 	}
 
 	newVersion := snapshot.GetResourceVersion(req.TypeUrl)
-	glog.Infof("new version: %s of xDS response found", newVersion)
+	glog.Infof("new version: %s of discovery response found", newVersion)
 	// Create response from cache
 	return scache.GenerateResponse(req, snapshot.GetResources(req.TypeUrl), newVersion), nil
 }

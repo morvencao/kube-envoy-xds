@@ -74,10 +74,9 @@ func (svr *xDSServer) processReq(stream v2.ClusterDiscoveryService_StreamCluster
 	routersChan := make(chan resource.Response, 1)
 
 	var clustersNonce, endpointsNonce, listenersNonce, routersNonce string
+	var streamNonce int64
 
-	streamNonce := int64(0)
-
-	glog.Info("starting process the xDS request on the stream...")
+	glog.Info("starting process for the discovery request loop on the stream...")
 	for {
 		select {
 		case clusters, more := <-clustersChan:
@@ -163,38 +162,41 @@ func (svr *xDSServer) processReq(stream v2.ClusterDiscoveryService_StreamCluster
 
 			switch {
 			case req.TypeUrl == resource.ClusterType && (clustersNonce == "" || clustersNonce == repNonce):
-				glog.Infof("last CDS response has been sent, ready to process the new CDS request: %v", req)
+				glog.Infof("last CDS response has been sent, ready to process the new CDS request")
 				resp, err := svr.cache.CreateResponse(req)
 				if err != nil {
 					glog.Errorf("failed to create CDS response from cache: %v", err)
-					return err
+				} else {
+					glog.Infof("CDS response from cache: %v", *resp)
+					clustersChan <- *resp
 				}
-				glog.Infof("CDS response from cache: %v", *resp)
-				clustersChan <- *resp
 			case req.TypeUrl == resource.EndpointType && (endpointsNonce == "" || endpointsNonce == repNonce):
-				glog.Infof("last EDS response has been sent, ready to process the new EDS request: %v", req)
+				glog.Infof("last EDS response has been sent, ready to process the new EDS request")
 				resp, err := svr.cache.CreateResponse(req)
 				if err != nil {
 					glog.Errorf("failed to create EDS response from cache: %v", err)
-					return err
+				} else {
+					glog.Infof("EDS response from cache: %v", *resp)
+					endpointsChan <- *resp
 				}
-				endpointsChan <- *resp
 			case req.TypeUrl == resource.ListenerType && (listenersNonce == "" || listenersNonce == repNonce):
-				glog.Infof("last LDS response has been sent, ready to process the new LDS request: %v", req)
+				glog.Infof("last LDS response has been sent, ready to process the new LDS request")
 				resp, err := svr.cache.CreateResponse(req)
 				if err != nil {
 					glog.Errorf("failed to create LDS response from cache: %v", err)
-					return err
+				} else {
+					glog.Infof("LDS response from cache: %v", *resp)
+					listenersChan <- *resp
 				}
-				listenersChan <- *resp
 			case req.TypeUrl == resource.RouteType && (routersNonce == "" || routersNonce == repNonce):
-				glog.Infof("last RDS response has been sent, ready to process the new RDS request: %v", req)
+				glog.Infof("last RDS response has been sent, ready to process the new RDS request")
 				resp, err := svr.cache.CreateResponse(req)
 				if err != nil {
 					glog.Errorf("failed to create RDS response from cache: %v", err)
-					return err
+				} else {
+					glog.Infof("RDS response from cache: %v", *resp)
+					routersChan <- *resp
 				}
-				routersChan <- *resp
 			}
 		}
 	}
