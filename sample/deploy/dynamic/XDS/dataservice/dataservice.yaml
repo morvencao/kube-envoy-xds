@@ -69,7 +69,7 @@ data:
       address:
         socket_address:
           address: 0.0.0.0
-          port_value: 8001
+          port_value: 8301
     node:
       cluster: dataservice-envoy-cluster
       id: dataservice-envoy
@@ -90,7 +90,7 @@ data:
         lb_policy: round_robin
         hosts:
         - socket_address:
-            address: jaeger
+            address: zipkin
             port_value: 9411
     dynamic_resources:
       cds_config:

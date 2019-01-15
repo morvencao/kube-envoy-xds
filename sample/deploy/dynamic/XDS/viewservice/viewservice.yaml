@@ -10,9 +10,12 @@ spec:
   - name: http-viewservice
     port: 9080
     targetPort: 9080
-  - name: http-listener
+  - name: http-viewservice-listener
     port: 8100
     targetPort: 8100
+  - name: http-dataservice-listener
+    port: 8200
+    targetPort: 8200
   - name: http-admin
     port: 8101
     targetPort: 8101
@@ -44,6 +47,7 @@ spec:
         image: envoyproxy/envoy:latest
         ports:
         - containerPort: 8100
+        - containerPort: 8200
         - containerPort: 8101
         command: ["/usr/local/bin/envoy"]
         args: ["-c", "/etc/envoy-config/sidecar-envoy.yaml", "--service-cluster", "viewservice", "--log-format", "[METADATA][%Y-%m-%d %T.%e][%t][%l][%n] %v"]
@@ -152,7 +156,7 @@ data:
         lb_policy: round_robin
         hosts:
         - socket_address:
-            address: jaeger
+            address: zipkin
             port_value: 9411
     tracing:
       http:

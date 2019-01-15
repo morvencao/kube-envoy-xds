@@ -115,7 +115,7 @@ data:
         lb_policy: round_robin
         hosts:
         - socket_address:
-            address: jaeger
+            address: zipkin
             port_value: 9411
     tracing:
       http:
