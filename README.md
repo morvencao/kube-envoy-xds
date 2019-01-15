@@ -42,3 +42,8 @@ make build
 ```sh
 make docker
 ```
+
+7. Push docker image
+```sh
+make push
+```
