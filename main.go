@@ -8,6 +8,7 @@ import (
 	"github.com/golang/glog"
 
 	api "github.com/morvencao/kube-envoy-xds/envoy/api/v2"
+	discovery "github.com/morvencao/kube-envoy-xds/envoy/service/discovery/v2"
 	cache "github.com/morvencao/kube-envoy-xds/pkg/cache"
 	resource "github.com/morvencao/kube-envoy-xds/pkg/resource"
 	xds "github.com/morvencao/kube-envoy-xds/pkg/server"
@@ -60,6 +61,7 @@ func main() {
 	api.RegisterEndpointDiscoveryServiceServer(grpcSvr, xdsSvr)
 	api.RegisterListenerDiscoveryServiceServer(grpcSvr, xdsSvr)
 	api.RegisterRouteDiscoveryServiceServer(grpcSvr, xdsSvr)
+	discovery.RegisterAggregatedDiscoveryServiceServer(grpcSvr, xdsSvr)
 
 	// start the gRPC server
 	glog.Info("starting the xDS server...")

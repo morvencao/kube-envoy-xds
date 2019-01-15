@@ -22,6 +22,7 @@ const (
 	EndpointType = typePrefix + "envoy.api.v2.ClusterLoadAssignment"
 	ListenerType = typePrefix + "envoy.api.v2.Listener"
 	RouteType = typePrefix + "envoy.api.v2.RouteConfiguration"
+	AnyType = ""  // AnyType is used in ADS
 )
 
 const (

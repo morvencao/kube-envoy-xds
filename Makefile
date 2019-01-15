@@ -9,7 +9,7 @@ BINDIR	:= bin
 
 .PHONY: docker
 docker: build
-	@docker build -f Dockerfile -t morvencao/envoy-xds:v1.0 .
+	@docker build -f Dockerfile -t morvencao/envoy-xds:v2.0 .
 
 .PHONY: build
 build: vendor

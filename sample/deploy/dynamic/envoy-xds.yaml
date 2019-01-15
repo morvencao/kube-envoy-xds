@@ -31,6 +31,6 @@ spec:
     spec:
       containers:
       - name: envoy-xds
-        image: morvencao/envoy-xds:v1.0
+        image: morvencao/envoy-xds:v2.0
         ports:
         - containerPort: 15010
