@@ -64,7 +64,7 @@ admin:
   address:
     socket_address:
       address: 0.0.0.0
-      port_value: 8301
+      port_value: 8101
 static_resources:
   listeners:
   - name: dataservice-http_listener
@@ -113,7 +113,7 @@ admin:
   address:
     socket_address:
       address: 0.0.0.0
-      port_value: 8301
+      port_value: 8101
 node:
   cluster: dataservice-envoy-cluster
   id: dataservice-envoy
@@ -197,7 +197,7 @@ admin:
   address:
     socket_address:
       address: 0.0.0.0
-      port_value: 8301
+      port_value: 8101
 node:
   cluster: dataservice-envoy-cluster
   id: dataservice-envoy
@@ -227,8 +227,6 @@ dynamic_resources:
 
 ### How to implament an Evvoy management server:
 
-
-
 `Make Before Break` principle:
 	* CDS updates (if any) must always be pushed first.
 	* EDS updates (if any) must arrive after CDS updates for the respective clusters.
@@ -236,9 +234,8 @@ dynamic_resources:
 	* RDS updates related to the newly added listeners must arrive in the end.
 	* Stale CDS clusters and related EDS endpoints (ones no longer being referenced) can then be removed.
 
-*ADS*
-a single management server, via a single gRPC stream, to deliver all API updates
-
+#### Aggregated Discovery Services (ADS)
+It's challenging to provide the guarantees on sequencing to avoid traffic drop when management servers are distributed. ADS allow a single management server, via a single gRPC stream, to deliver all API updates. This provides the ability to carefully sequence updates to avoid traffic drop. With ADS, a single stream is used with multiple independent `DiscoveryRequest/DiscoveryResponse` sequences multiplexed via the type URL. For any given type URL, the above sequencing of `DiscoveryRequest` and `DiscoveryResponse` messages applies.
 
 ### Links:
 
