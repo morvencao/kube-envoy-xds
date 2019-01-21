@@ -14,8 +14,8 @@ spec:
     port: 8300
     targetPort: 8300
   - name: http-admin
-    port: 8301
-    targetPort: 8301
+    port: 8101
+    targetPort: 8101
   selector:
     app: data
 ---
@@ -44,7 +44,7 @@ spec:
         image: envoyproxy/envoy:latest
         ports:
         - containerPort: 8300
-        - containerPort: 8301
+        - containerPort: 8101
         command: ["/usr/local/bin/envoy"]
         args: ["-c", "/etc/envoy-config/sidecar-envoy.yaml", "--service-cluster", "dataservice", "--log-format", "[METADATA][%Y-%m-%d %T.%e][%t][%l][%n] %v"]
         volumeMounts:
@@ -69,7 +69,7 @@ data:
       address:
         socket_address:
           address: 0.0.0.0
-          port_value: 8301
+          port_value: 8101
     static_resources:
       listeners:
       - name: dataservice-http_listener
