@@ -224,17 +224,24 @@ dynamic_resources:
     ads: {}
 ```
 
+### Eventual consistency considerations
 
-### How to implament an Evvoy management server:
+Since Envoy's xDS APIs are eventually consistent, traffic may drop briefly during updates. For example, if only cluster `X` is known via CDS/EDS, a `RouteConfiguration` references cluster `X` and is then adjusted to cluster `Y` just before the CDS/EDS update providing `Y`, traffic will be blackholed until `Y` is known about by the Envoy instance.
 
-`Make Before Break` principle:
-	* CDS updates (if any) must always be pushed first.
-	* EDS updates (if any) must arrive after CDS updates for the respective clusters.
-	* LDS updates must arrive after corresponding CDS/EDS updates.
-	* RDS updates related to the newly added listeners must arrive in the end.
-	* Stale CDS clusters and related EDS endpoints (ones no longer being referenced) can then be removed.
+For some applications, a temporary drop of traffic is acceptable, retries at the client or by other Envoy sidecars will hide this drop. For other scenarios where drop can't be tolerated, traffic drop could have been avoided by providing a CDS/EDS update with both `X` and `Y`, then the RDS update repointing from `X` to `Y` and then a CDS/EDS update dropping `X`.
+
+In general, to avoid traffic drop, sequencing of updates should follow a `make before break` model, wherein
+
+- CDS updates (if any) must always be pushed first.
+- EDS updates (if any) must arrive after CDS updates for the respective clusters.
+- LDS updates must arrive after corresponding CDS/EDS updates.
+- RDS updates related to the newly added listeners must arrive in the end.
+- Stale CDS clusters and related EDS endpoints (ones no longer being referenced) can then be removed.
+
+xDS updates can be pushed independently if no new clusters/routes/listeners are added or if it's acceptable to temporarily drop traffic during updates. Note that in case of LDS updates, the listeners will be warmed before they receive traffic, i.e. the dependent routes are fetched through RDS if configured. Clusters are warmed when adding/removing/updating clusters. On the other hand, routes are not warmed, i.e., the management plane must ensure that clusters referenced by a route are in place, before pushing the updates for a route.
 
 #### Aggregated Discovery Services (ADS)
+
 It's challenging to provide the guarantees on sequencing to avoid traffic drop when management servers are distributed. ADS allow a single management server, via a single gRPC stream, to deliver all API updates. This provides the ability to carefully sequence updates to avoid traffic drop. With ADS, a single stream is used with multiple independent `DiscoveryRequest/DiscoveryResponse` sequences multiplexed via the type URL. For any given type URL, the above sequencing of `DiscoveryRequest` and `DiscoveryResponse` messages applies.
 
 ### Links:
