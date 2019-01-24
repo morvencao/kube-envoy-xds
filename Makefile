@@ -13,11 +13,12 @@ docker: docker
 
 .PHONY: docker
 docker: build
+	@echo "--> building docker image"
 	@docker build -f Dockerfile -t morvencao/envoy-xds:v2.0 .
 
 .PHONY: build
 build: vendor
-	@echo "---> building"
+	@echo "---> building go binary"
 	@CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o kube-envoy-xds .
 
 .PHONY: clean
