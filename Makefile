@@ -9,7 +9,7 @@ BINDIR	:= bin
 
 .PHONY: push
 docker: docker
-	@docker morvencao/envoy-xds:v2.0
+	@docker push morvencao/envoy-xds:v2.0
 
 .PHONY: docker
 docker: build
