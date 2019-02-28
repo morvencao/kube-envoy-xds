@@ -8,7 +8,7 @@ SHELL 	:= /bin/bash
 BINDIR	:= bin
 
 .PHONY: push
-docker: docker
+push: docker
 	@docker push morvencao/envoy-xds:v2.0
 
 .PHONY: docker
