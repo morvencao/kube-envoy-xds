@@ -1,7 +1,7 @@
 # Envoy xDS backed by Kubernetes
 
 Simple golang-based implementation of an API server that
-aim to run in Kubernetes cluster that implements the Envoy
+aimed to run in Kubernetes cluster that implements the Envoy
 discovery service APIs defined in [data-plane-api](https://github.com/envoyproxy/data-plane-api).
 
 ## Requirements
@@ -10,7 +10,7 @@ discovery service APIs defined in [data-plane-api](https://github.com/envoyproxy
 2. Docker
 3. Kubernetes
 
-## Quick start
+## Build
 
 1. Setup tools and dependencies
 
@@ -46,4 +46,9 @@ make docker
 7. Push docker image
 ```sh
 make push
+```
+
+8. Clean the build
+```sh
+make clean
 ```
