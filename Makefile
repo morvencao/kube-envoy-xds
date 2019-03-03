@@ -7,6 +7,12 @@
 SHELL 	:= /bin/bash
 BINDIR	:= bin
 
+PKG 		:= github.com/morvencao/kube-envoy-xds
+# Pure Go sources
+GOFILES		= $(shell find . -type f -name '*.go' -not -path "./vendor/*")
+GODIRS		= $(shell go list -f '{{.Dir}}' ./... \
+						| grep -vFf <(go list -f '{{.Dir}}' ./vendor/...))
+
 .PHONY: push
 push: docker
 	@docker push morvencao/envoy-xds:v2.0
@@ -28,12 +34,27 @@ clean:
 	@rm -rf $(BINDIR)/*
 
 .PHONY: check
-check: vet
+check: format.check vet lint
+
+.PHONY: format
+format: tools.goimports
+	@echo "--> formatting code with 'goimports' tool"
+	@goimports -local $(PKG) -w -l $(GOFILES)
+
+.PHONY: format.check
+format.check: tools.goimports
+	@echo "--> checking code formatting with 'goimports' tool"
+	@goimports -local $(PKG) -l $(GOFILES) | sed -e "s/^/\?\t/" | tee >(test -z)
 
 .PHONY: vet
 vet: tools.govet
 	@echo "--> checking code correctness with 'go vet' tool"
 	@go vet ./...
+
+.PHONY: lint
+lint: tools.golint
+	@echo "--> checking code style with 'golint' tool"
+	@echo $(GODIRS) | xargs -n 1 golint
 
 #-----------------
 #-- code generaion
