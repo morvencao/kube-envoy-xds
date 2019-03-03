@@ -30,7 +30,7 @@ build: vendor
 .PHONY: clean
 clean:
 	@echo "--> cleaning compiled objects and binaries"
-	@go clean
+	@go clean -tags netgo -i ./...
 	@rm -rf $(BINDIR)/*
 
 .PHONY: check
